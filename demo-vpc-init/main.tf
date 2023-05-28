@@ -146,7 +146,7 @@ resource "aws_instance" "web_server" {
     command = "chmod 600 ${local_file.private_key_pem.filename}"
   }
 
-  // clones repo from hashicorp then invokes the setup script on the running EC2 instance
+  # clones repo from hashicorp then invokes the setup script on the running EC2 instance
   provisioner "remote-exec" {
     inline = [
       "sudo rm -rf /tmp",
@@ -159,6 +159,16 @@ resource "aws_instance" "web_server" {
     Name  = local.server_name
     Owner = local.team
     App   = local.application
+  }
+}
+
+# Terraform Resource Block - To Build EC2 instance in Public Subnet
+resource "aws_instance" "web_server_2" {
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = "t2.micro"
+  subnet_id     = aws_subnet.public_subnets["public_subnet_2"].id
+  tags = {
+    Name = "Web EC2 Server 2"
   }
 }
 
@@ -260,4 +270,74 @@ resource "aws_security_group" "vpc-ping" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
+
+
+module "server" {
+  source    = "./modules/server"
+  ami       = data.aws_ami.ubuntu.id
+  subnet_id = aws_subnet.public_subnets["public_subnet_3"].id
+  security_groups = [
+    aws_security_group.vpc-ping.id,
+    aws_security_group.ingress-ssh.id,
+    aws_security_group.vpc-web.id
+  ]
+}
+
+module "server_subnet_1" {
+  source      = "./modules/web_server"
+  ami         = data.aws_ami.ubuntu.id
+  key_name    = aws_key_pair.generated.key_name
+  user        = "ubuntu"
+  private_key = tls_private_key.generated.private_key_pem
+  subnet_id   = aws_subnet.public_subnets["public_subnet_1"].id
+  security_groups = [
+    aws_security_group.vpc-ping.id,
+    aws_security_group.ingress-ssh.id,
+    aws_security_group.vpc-web.id
+  ]
+}
+
+output "server_subnet_3_public_ip" {
+  value = module.server.public_ip
+}
+output "server_subnet_3_public_dns" {
+  value = module.server.public_dns
+}
+
+output "size" {
+  value = module.server.size
+}
+
+output "server_subnet_1_public_ip" {
+  value = module.server_subnet_1.public_ip
+}
+output "server_subnet_1_public_dns" {
+  value = module.server_subnet_1.public_dns
+}
+
+
+module "autoscaling" {
+  source = "github.com/terraform-aws-modules/terraform-aws-autoscaling"
+  # Autoscaling group
+  name = "myasg"
+  vpc_zone_identifier = [aws_subnet.private_subnets["private_subnet_1"].id
+    ,
+    aws_subnet.private_subnets["private_subnet_2"].id,
+  aws_subnet.private_subnets["private_subnet_3"].id]
+  min_size         = 0
+  max_size         = 1
+  desired_capacity = 1
+  # Launch template
+  create                 = true
+  create_launch_template = true
+  image_id               = data.aws_ami.ubuntu.id
+  instance_type          = "t3.micro"
+  tags = {
+    Name = "Web EC2 Server 2"
+  }
+}
+
+output "asg_group_size" {
+  value = module.autoscaling.autoscaling_group_max_size
 }
