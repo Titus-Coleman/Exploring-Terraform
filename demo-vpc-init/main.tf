@@ -21,7 +21,26 @@ resource "aws_vpc" "vpc" {
 locals {
   team        = "api_mgmt_dev"
   application = "corp_api"
-  server_name = "ec2-${var.environment}-api-${var.variables_sub_az}"
+  # server_name = "ec2-${var.environment}-api-${var.variables_sub_az}"
+}
+
+locals {
+  # for Web Server 2
+  service_name = "Automation"
+  app_team     = "Cloud Team"
+  createdby    = "terraform"
+}
+
+locals {
+  # Common tags to be assigned to all resources
+  common_tags = {
+    # Name      = var.server_name
+    Owner     = local.team
+    App       = local.application
+    Service   = local.service_name
+    AppTeam   = local.app_team
+    CreatedBy = local.createdby
+  }
 }
 
 #Deploy the private subnets
@@ -126,49 +145,54 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"]
 }
 # Terraform Resource Block - To Build EC2 instance in Public Subnet
-resource "aws_instance" "web_server" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = "t2.micro"
-  subnet_id     = aws_subnet.public_subnets["public_subnet_1"].id
-  security_groups = [aws_security_group.vpc-ping.id,
-  aws_security_group.ingress-ssh.id, aws_security_group.vpc-web.id]
-  associate_public_ip_address = true
-  key_name                    = aws_key_pair.generated.key_name
+# resource "aws_instance" "web_server" {
+#   ami           = data.aws_ami.ubuntu.id
+#   instance_type = "t2.micro"
+#   subnet_id     = aws_subnet.public_subnets["public_subnet_1"].id
+#   security_groups = [aws_security_group.vpc-ping.id,
+#   aws_security_group.ingress-ssh.id, aws_security_group.vpc-web.id]
+#   associate_public_ip_address = true
+#   key_name                    = aws_key_pair.generated.key_name
 
-  # specifies the user details for connecting directly to the server via SSH
-  # connection and provisioner blocks cannot standalone and must be within a corresponding resource block
-  connection {
-    user        = "ubuntu"
-    private_key = tls_private_key.generated.private_key_pem
-    host        = self.public_ip
-  }
-  provisioner "local-exec" {
-    command = "chmod 600 ${local_file.private_key_pem.filename}"
-  }
+#   # specifies the user details for connecting directly to the server via SSH
+#   # connection and provisioner blocks cannot standalone and must be within a corresponding resource block
+#   connection {
+#     user        = "ubuntu"
+#     private_key = tls_private_key.generated.private_key_pem
+#     host        = self.public_ip
+#   }
+#   provisioner "local-exec" {
+#     command = "chmod 600 ${local_file.private_key_pem.filename}"
+#   }
 
-  # clones repo from hashicorp then invokes the setup script on the running EC2 instance
-  provisioner "remote-exec" {
-    inline = [
-      "sudo rm -rf /tmp",
-      "sudo git clone https://github.com/hashicorp/demo-terraform-101 /tmp",
-      "sudo sh /tmp/assets/setup-web.sh",
-    ]
-  }
+#   # clones repo from hashicorp then invokes the setup script on the running EC2 instance
+#   provisioner "remote-exec" {
+#     inline = [
+#       "sudo rm -rf /tmp",
+#       "sudo git clone https://github.com/hashicorp/demo-terraform-101 /tmp",
+#       "sudo sh /tmp/assets/setup-web.sh",
+#     ]
+#   }
 
-  tags = {
-    Name  = local.server_name
-    Owner = local.team
-    App   = local.application
-  }
-}
+#   tags = {
+#     Name  = local.server_name
+#     Owner = local.team
+#     App   = local.application
+#   }
+# }
 
 # Terraform Resource Block - To Build EC2 instance in Public Subnet
 resource "aws_instance" "web_server_2" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = "t2.micro"
   subnet_id     = aws_subnet.public_subnets["public_subnet_2"].id
+
+  # you can use tags = local.common_tags as one source 
   tags = {
-    Name = "Web EC2 Server 2"
+    Name         = "Web EC2 Server 2"
+    service_name = "Automation"
+    app_team     = "Cloud Team"
+    createdby    = "terraform"
   }
 }
 
